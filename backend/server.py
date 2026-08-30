@@ -114,6 +114,168 @@ def _persisted_workspace() -> Optional[str]:
     return None
 
 
+# The agent checkout itself.  When the dev runner is launched from inside this
+# project the persisted (UI-picker) workspace still applies; when launched from
+# another folder that folder is the explicit target and must win over anything
+# stale that was persisted earlier.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _ide_storage_paths() -> List[Path]:
+    """Candidate Cursor / VSCode global-storage files on this machine."""
+    if os.name == "nt":
+        appdata = os.getenv("APPDATA") or ""
+        roots = [Path(appdata) / "Cursor", Path(appdata) / "Code"] if appdata else []
+    elif sys.platform == "darwin":
+        support = Path.home() / "Library" / "Application Support"
+        roots = [support / "Cursor", support / "Code"]
+    else:
+        config = Path.home() / ".config"
+        roots = [config / "Cursor", config / "Code"]
+    return [root / "User" / "globalStorage" / "storage.json" for root in roots]
+
+
+def _file_uri_to_path(uri: str) -> Optional[str]:
+    """Convert a file:// URI (as stored by Cursor/VSCode) to a local path."""
+    value = str(uri or "").strip()
+    if not value:
+        return None
+    if value.startswith("file://"):
+        value = urllib.parse.unquote(value[len("file://"):])
+        # file:///C:/Users/... -> /C:/Users/... -> C:/Users/...
+        if re.match(r"^/[A-Za-z]:", value):
+            value = value[1:]
+    return value or None
+
+
+def _ide_open_workspace() -> Optional[str]:
+    """Return the folder currently open in Cursor/VSCode, when detectable.
+
+    Reads the IDE's own global storage: the active window's workspace path
+    first, then the most recently opened folder.  Anything unreadable or
+    nonexistent is ignored so detection never throws.
+    """
+    for storage_path in _ide_storage_paths():
+        try:
+            data = json.loads(storage_path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        candidates: List[str] = []
+        # VSCode: windowState.lastActiveWindow.{workspacePath,workspace,rootURI,rootURIs}
+        # Cursor: windowsState.lastActiveWindow.{folder}
+        for state_key in ("windowState", "windowsState"):
+            try:
+                window = data.get(state_key, {}).get("lastActiveWindow") or {}
+            except AttributeError:
+                window = {}
+            if isinstance(window, dict):
+                for key in ("workspacePath", "workspace", "rootURI", "folder"):
+                    value = window.get(key)
+                    if isinstance(value, str):
+                        candidates.append(value)
+                for value in window.get("rootURIs") or []:
+                    if isinstance(value, str):
+                        candidates.append(value)
+        # VSCode: history.recentlyOpenedPathsList.entries[].folderUri
+        try:
+            recent = data.get("history", {}).get("recentlyOpenedPathsList", {}).get("entries")
+        except AttributeError:
+            recent = None
+        if isinstance(recent, list):
+            for entry in recent:
+                if isinstance(entry, dict) and isinstance(entry.get("folderUri"), str):
+                    candidates.append(entry["folderUri"])
+        # Cursor: backupWorkspaces.folders[].folderUri
+        try:
+            backup_folders = data.get("backupWorkspaces", {}).get("folders")
+        except AttributeError:
+            backup_folders = None
+        if isinstance(backup_folders, list):
+            for entry in backup_folders:
+                if isinstance(entry, dict) and isinstance(entry.get("folderUri"), str):
+                    candidates.append(entry["folderUri"])
+        for candidate in candidates:
+            folder = _file_uri_to_path(candidate)
+            if folder:
+                try:
+                    resolved = Path(folder).expanduser().resolve()
+                except OSError:
+                    continue
+                if resolved.is_dir():
+                    return str(resolved)
+    return None
+
+
+def _effective_workspace(passed: Optional[str] = None) -> str:
+    """Pick the backend workspace from the strongest available signal.
+
+    Priority:
+      1. ``AGENT_WORKSPACE`` env var (explicit override).
+      2. A folder the caller explicitly targeted that is NOT this agent
+         checkout itself (e.g. the dev runner launched from the working folder).
+      3. The persisted workspace (last UI-picker / IDE-follow selection).
+      4. The passed folder, then the current working directory.
+    ``_sync_ide_workspace`` refines this at startup and while the server runs,
+    so opening another folder in the IDE moves the backend along instead of
+    leaving it pinned to an old path.
+    """
+    env_ws = os.getenv("AGENT_WORKSPACE")
+    if env_ws:
+        valid = _valid_workspace(env_ws)
+        if valid:
+            return valid
+    if passed:
+        valid = _valid_workspace(passed)
+        if valid and os.path.normcase(str(Path(valid))) != os.path.normcase(str(_PROJECT_ROOT)):
+            return valid
+    persisted = _persisted_workspace()
+    if persisted:
+        return persisted
+    if passed:
+        valid = _valid_workspace(passed)
+        if valid:
+            return valid
+    return str(Path(os.getcwd()).expanduser().resolve())
+
+
+def _follow_ide_workspace_loop(manager: "SessionManager") -> None:
+    """Background thread: follow the IDE folder only when it CHANGES.
+
+    The first successful read only establishes a baseline, so a persisted
+    default (e.g. Videos\\Project) is not overridden by whatever window
+    happens to be focused when the server starts.  A later switch to a
+    different existing folder moves the backend default and is persisted.
+    """
+    baseline: Dict[str, Any] = {"folder": None, "established": False}
+    while True:
+        time.sleep(5)
+        try:
+            detected = _ide_open_workspace()
+            if not detected:
+                continue
+            if not baseline["established"]:
+                baseline["folder"] = detected
+                baseline["established"] = True
+                continue
+            if detected == baseline["folder"]:
+                continue
+            baseline["folder"] = detected
+            current = str(getattr(manager, "default_workspace", "") or "")
+            try:
+                same = os.path.normcase(str(Path(detected).resolve())) == os.path.normcase(str(Path(current).resolve()))
+            except OSError:
+                same = False
+            if same:
+                continue
+            manager.default_workspace = str(Path(detected).resolve())
+            _persist_workspace(manager.default_workspace)
+            print("[workspace] followed IDE workspace: %s" % manager.default_workspace, flush=True)
+        except Exception:
+            pass
+
+
 class QuietThreadingHTTPServer(ThreadingHTTPServer):
     """Threading HTTP server that stays quiet on routine client disconnects."""
 
@@ -365,6 +527,11 @@ class AgentRequestHandler(BaseHTTPRequestHandler):
                 return
             if route in {"/api/projects/tree", "/api/workspace/tree"}:
                 root = query.get("root") or self.manager.default_workspace
+                # A stale root (deleted folder / old browser bookmark) must not
+                # 400 the UI: fall back to the backend default, which follows
+                # the folder currently open in the IDE.
+                if not root or not Path(root).expanduser().resolve().is_dir():
+                    root = self.manager.default_workspace
                 tools = LocalTools(root)
                 items = tools.list_tree(query.get("path", "."))
                 tree = nested_tree(items, tools.workspace.name)
@@ -1385,12 +1552,23 @@ class AgentRequestHandler(BaseHTTPRequestHandler):
 
 def create_server(host: str = "127.0.0.1", port: int = 8000, workspace: Optional[str] = None) -> ThreadingHTTPServer:
     load_local_env(_settings_env_path())
-    # A previously persisted workspace (the one the user actually works in)
-    # wins over the process default so the backend and the frontend agree even
-    # after a dev-runner restart that passes the checkout path explicitly.
-    default_ws = _persisted_workspace() or workspace or os.getcwd()
+    # The default workspace comes from the strongest configured signal:
+    # AGENT_WORKSPACE env, an explicitly launched folder, or the persisted
+    # default (e.g. Videos\Project).  IDE following does NOT run at startup,
+    # so a persisted default is not immediately overridden by the window that
+    # happens to be focused; the poll thread only follows later switches.
+    default_ws = _effective_workspace(workspace)
     store_path = os.getenv("AGENT_SESSION_STORE") or str(Path(__file__).resolve().parent.parent / ".runtime" / "sessions.jsonl")
     manager = SessionManager(default_workspace=default_ws, store_path=store_path)
+    # IDE following applies when no explicit target folder was chosen.  When
+    # the user launched the dev runner from a specific folder (other than this
+    # checkout) that launch folder is the authoritative target and must not be
+    # overridden by whatever window happens to be focused in the IDE.
+    explicit_target = bool(workspace) and _valid_workspace(workspace) is not None and (
+        os.path.normcase(str(Path(workspace).expanduser().resolve())) != os.path.normcase(str(_PROJECT_ROOT))
+    )
+    if not explicit_target:
+        threading.Thread(target=_follow_ide_workspace_loop, args=(manager,), daemon=True).start()
     auth_path = os.getenv("AGENT_AUTH_STORE") or str(Path(__file__).resolve().parent.parent / ".runtime" / "users.sqlite3")
     auth_store = AuthStore(auth_path)
     server = ThreadingHTTPServer((host, port), AgentRequestHandler)
@@ -1406,9 +1584,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--port", type=int, default=int(os.getenv("AGENT_PORT", "8000")))
     parser.add_argument("--workspace", default=os.getenv("AGENT_WORKSPACE", os.getcwd()))
     args = parser.parse_args(argv)
-    default_ws = _persisted_workspace() or args.workspace
     server = create_server(args.host, args.port, args.workspace)
-    print("NJU Coding Agent API listening on http://%s:%d (workspace=%s)" % (args.host, args.port, Path(default_ws).resolve()))
+    # Report the final workspace after IDE following resolved it, not the
+    # pre-sync value that may still carry a stale persisted path.
+    final_ws = server.RequestHandlerClass.manager.default_workspace
+    print("NJU Coding Agent API listening on http://%s:%d (workspace=%s)" % (args.host, args.port, Path(final_ws).resolve()))
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -17,7 +17,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PORT = int(os.getenv("AGENT_PORT", "8124"))
-WORKSPACE = Path(os.getenv("AGENT_WORKSPACE", str(ROOT))).resolve()
+# Follow the folder the user launched the dev runner from, so opening another
+# project folder and starting the agent there moves the workspace with it.
+# AGENT_WORKSPACE stays the explicit override; when launched from inside this
+# checkout the backend keeps its persisted/UI-picker workspace instead.
+WORKSPACE = Path(os.getenv("AGENT_WORKSPACE", str(Path.cwd()))).expanduser().resolve()
 
 
 def fingerprint(folder: Path, suffixes: set[str]) -> tuple[tuple[str, int, int], ...]:

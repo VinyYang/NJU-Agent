@@ -3097,7 +3097,17 @@ function hideTreeContextMenu() { const menu = $("treeContextMenu"); if (menu) me
 async function refreshWorkspaceTree() {
   if (!state.connected || !state.workspace) { renderTree(); return; }
   const payload = await api(`/api/workspace/tree?root=${encodeURIComponent(state.workspace)}`);
-  if (payload) state.tree = normaliseTree(payload);
+  if (payload) {
+    // The backend falls back to its own default (which follows the IDE) when
+    // the requested folder no longer exists; mirror that resolution so the UI
+    // does not keep pointing at a stale path.
+    if (payload.root && payload.root !== state.workspace) {
+      state.workspace = payload.root;
+      state.workspaceName = shortPath(payload.root);
+      try { localStorage.setItem("codepilot.workspace", payload.root); } catch { /* private browsing */ }
+    }
+    state.tree = normaliseTree(payload);
+  }
   renderTree();
 }
 function applySavedTheme() {
@@ -3939,10 +3949,21 @@ async function bootAgent() {
   try { codeFirst = localStorage.getItem("codepilot.layout") === "code-first"; } catch { /* private browsing */ }
   setLayoutPreference(codeFirst, false);
   await selectFile(state.selectedPath);
-  const defaultWorkspace = new URLSearchParams(location.search).get("workspace") || localStorage.getItem("codepilot.workspace") || "";
-  const payload = await api(defaultWorkspace
-    ? `/api/workspace/tree?root=${encodeURIComponent(defaultWorkspace)}`
-    : "/api/workspace/tree");
+  // Backend is authoritative for the workspace: it follows the folder the
+  // user has open in the IDE (server-side sync). Only an explicit
+  // ?workspace= URL parameter overrides it; a stale localStorage copy must
+  // not pin the backend to an old folder.
+  const urlWorkspace = new URLSearchParams(location.search).get("workspace");
+  let defaultWorkspace = urlWorkspace || "";
+  let payload = defaultWorkspace
+    ? await api(`/api/workspace/tree?root=${encodeURIComponent(defaultWorkspace)}`)
+    : await api("/api/workspace/tree");
+  if (!payload?.root && !urlWorkspace) {
+    // Offline or backend without a default: fall back to the last locally
+    // remembered folder so a purely local session still has a tree.
+    defaultWorkspace = localStorage.getItem("codepilot.workspace") || "";
+    if (defaultWorkspace) payload = await api(`/api/workspace/tree?root=${encodeURIComponent(defaultWorkspace)}`);
+  }
   if (payload) {
     state.workspace = payload.root || defaultWorkspace || state.workspace;
     state.workspaceName = state.workspaceName || shortPath(state.workspace);
@@ -3952,10 +3973,11 @@ async function bootAgent() {
         if ($("testCommand")) $("testCommand").textContent = chooseSmokeCommand(state.tree);
     renderTree();
     setConnection(true);
-    // Keep the backend's default workspace in sync with the one the user
-    // actually works in, so a later backend restart (dev-runner hot reload)
-    // comes back with the same workspace instead of the checkout path.
-    if (state.workspace) api("/api/workspace", { method: "PUT", body: JSON.stringify({ workspace: state.workspace }), quiet: true }).catch(() => {});
+    // Mirror the adopted workspace locally (as a fallback only), and push an
+    // explicit ?workspace= choice back to the backend.  Without an explicit
+    // param the backend default (which follows the IDE) stays in charge.
+    try { localStorage.setItem("codepilot.workspace", state.workspace); } catch { /* private browsing */ }
+    if (urlWorkspace && state.workspace) api("/api/workspace", { method: "PUT", body: JSON.stringify({ workspace: state.workspace }), quiet: true }).catch(() => {});
     const firstCode = collectPaths(state.tree).find((path) => /\.(py|js|ts|jsx|tsx|java|go|rs|c|cpp|h|html|css|md|json|toml)$/i.test(path));
     await selectFile(firstCode || collectPaths(state.tree)[0] || state.selectedPath);
   } else {
