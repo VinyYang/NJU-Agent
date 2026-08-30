@@ -2,17 +2,31 @@
 
 ## 效果展示
 
+### 登录页面
+
 ![登录页面](Picture/login.png)
+
+### 工作台（浅色主题）
 
 ![工作台（浅色主题）](Picture/agent-light.png)
 
+### 工作台（深色主题）
+
 ![工作台（深色主题）](Picture/agent-dark.png)
 
-![需求问答可视化](Picture/QA.png)
+### 需求QA可视化
 
-![计划调整可视化](Picture/plan.png)
+![需求问答](Picture/QA.png)
 
-![Agent执行可视化](Picture/run.png)
+### 计划调整可视化
+
+![计划编辑](Picture/plan.png)
+
+### Agent执行可视化
+
+![Agent执行过程](Picture/run.png)
+
+### 上下文压缩
 
 ![上下文压缩](Picture/zip.png)
 
@@ -54,7 +68,7 @@ python -m backend --host 127.0.0.1 --port 8124 --workspace "C:\\path\\to\\your\\
 
 ### 3. 配置模型（可选）
 
-未配置 API key 时，Agent 会使用内置 `DemoModel` 完成离线演示。需要连接 OpenAI 兼容模型时，在本机 PowerShell 中设置环境变量：
+需要连接 OpenAI 兼容模型时，在本机 PowerShell 中设置环境变量：
 
 ```powershell
 $env:OPENAI_API_KEY = "your-api-key"
