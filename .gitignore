@@ -10,6 +10,8 @@
 !.env.example
 .codepilot-workspace
 README.txt
+start.ps1
+start.bat
 *.key
 *.pem
 
