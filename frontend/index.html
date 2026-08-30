@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#63065f" />
+    <meta name="description" content="NJU CodePilot — a local-first coding agent" />
+    <title>NJU CodePilot</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="auth-page" id="authPage" aria-label="NJU CodePilot 登录">
+      <div class="auth-container">
+        <div class="auth-left">
+          <div class="auth-brand-mark" aria-hidden="true"><span class="auth-brand-orbit"></span><span class="auth-brand-core">N</span></div>
+          <div class="branding-content">
+            <p class="auth-kicker">NANJING UNIVERSITY · SOFTWARE ENGINEERING</p>
+            <h1 id="authBrandTitle" class="animate-fade-in-down">NJU CodePilot</h1>
+            <p class="slogan animate-fade-in-up" id="authBrandSlogan">让每一次编码，都有清晰的路径</p>
+          </div>
+          <div class="auth-orbit orbit-one" aria-hidden="true"></div><div class="auth-orbit orbit-two" aria-hidden="true"></div>
+        </div>
+        <div class="auth-right">
+          <div class="login-wrapper">
+            <div class="login-header"><p class="eyebrow">WELCOME BACK</p><h2>欢迎回来</h2><p>登录你的账号，继续构建精彩项目</p></div>
+            <form id="loginForm" class="login-form">
+              <label class="login-field"><span id="loginUsernameLabel">用户名 / 邮箱</span><div class="login-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0"/></svg><input id="loginUsername" type="text" autocomplete="username" placeholder="请输入用户名或邮箱" required /></div></label>
+              <label class="login-field register-only-field" id="loginEmailField" hidden><span>邮箱（可选）</span><div class="login-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg><input id="loginEmail" type="email" autocomplete="email" placeholder="请输入邮箱" /></div></label>
+              <label class="login-field"><span>密码</span><div class="login-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="loginPassword" type="password" autocomplete="current-password" minlength="6" placeholder="请输入密码（至少6位）" required /><button type="button" class="password-toggle" id="passwordToggle" aria-label="显示密码">显示</button></div></label>
+              <label class="login-field register-only-field" id="loginPasswordConfirmField" hidden><span>确认密码</span><div class="login-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><input id="loginPasswordConfirm" type="password" autocomplete="new-password" placeholder="请再次输入密码" /></div></label>
+              <div class="form-options"><label class="remember-option"><input id="rememberLogin" type="checkbox" /> <span>记住我</span></label><button type="button" class="link-button" id="forgotPasswordButton">忘记密码？</button></div>
+              <button class="login-btn" type="submit" aria-busy="false"><span class="login-btn-text">登录</span></button>
+            </form>
+            <p class="login-footer">还没有账号？ <button type="button" class="link-button" id="registerButton">立即注册</button></p>
+            <p class="login-hint" id="loginHint" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <main class="app-shell" id="appShell" aria-label="NJU CodePilot coding agent" hidden>
+      <header class="topbar workbench-titlebar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><span class="brand-mark-line"></span><span class="brand-mark-dot"></span></div>
+          <div>
+            <div class="brand-name">NJU <span>CodePilot</span></div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button layout-swap-button" id="layoutSwapButton" type="button" aria-label="切换为代码优先布局" aria-pressed="false" title="切换为代码优先布局"><span class="layout-swap-glyph" aria-hidden="true">⇆</span><span id="layoutSwapLabel">代码优先</span></button>
+          <button class="icon-button" id="themeButton" type="button" title="切换主题"><span>◐</span></button>
+          <button class="icon-button" id="settingsButton" type="button" title="Agent 设置" aria-label="Agent 设置"><span>⚙</span></button>
+          <div class="personal-center-wrap"><button class="avatar" id="personalCenterButton" type="button" title="个人中心" aria-label="个人中心" aria-expanded="false">N</button></div>
+        </div>
+      </header>
+
+      <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+
+
+      <section class="content-grid chat-first">
+        <aside class="sidebar panel-border">
+          <div class="sidebar-heading">
+            <div>
+              <div class="eyebrow">EXPLORER</div>
+              <h2>项目文件</h2>
+            </div>
+            <div class="sidebar-heading-actions">
+              <button class="small-icon-button" id="openFolderButton" type="button" title="打开本地文件夹" aria-label="打开本地文件夹"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h6l2 2h10v9.5H3z"/><path d="M3 8.5V5h7l2 2"/></svg></button>
+              <button class="small-icon-button" id="refreshTreeButton" type="button" title="刷新文件树" aria-label="刷新文件树"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8a7 7 0 1 0 1 7M19 4v4h-4"/></svg></button>
+              <button class="small-icon-button" id="newFileButton" type="button" title="新建文件" aria-label="新建文件"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 2.5h6l4 4v9H4z"/><path d="M10 2.5v4h4M6.5 10h5M9 7.5v5"/></svg></button>
+              <button class="small-icon-button" id="newFolderButton" type="button" title="新建文件夹" aria-label="新建文件夹"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 5h4l1.5 1.5h7.5v8H2.5z"/><path d="M9.5 9v4M7.5 11h4"/></svg></button>
+            </div>
+          </div>
+          <div class="tree-toolbar">
+            <span class="tree-root-icon" aria-hidden="true"></span>
+            <span class="tree-root-name" id="treeRootName">demo-project</span>
+            <span class="workspace-access-badge" id="workspaceAccessBadge" hidden aria-live="polite">只读预览</span>
+            <span class="tree-count" id="treeCount">6</span>
+          </div>
+          <div class="folder-progress" id="folderProgress" hidden><div class="folder-progress-track"><span id="folderProgressBar"></span></div><span id="folderProgressLabel">正在上传文件…</span></div>
+          <div class="file-tree" id="fileTree" role="tree" aria-label="项目文件树"></div>
+        </aside>
+
+        <section class="agent-column">
+          <div class="agent-toolbar">
+            <div class="mode-switch" role="tablist" aria-label="运行模式">
+              <button class="mode-button" id="planModeButton" role="tab" aria-selected="false" type="button"><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="m9 2 7 7-7 7-7-7z"/></svg> 计划</button>
+              <button class="mode-button active" id="executeModeButton" role="tab" aria-selected="true" type="button"><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 2.5 15 9 4 15.5z"/></svg> 执行</button>
+            </div>
+            <div class="agent-toolbar-actions">
+              <button class="new-session-button compaction-button" id="openCompactionButton" type="button" aria-label="查看上下文压缩" title="查看上下文压缩" hidden><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 4h12M3 8h12M3 12h8"/><path d="m13.5 12 1.5-1.5L16.5 12M15 10.5V14"/></svg></button>
+              <button class="new-session-button" id="sessionHistoryButton" type="button" aria-label="历史会话" title="历史会话"><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><path d="M9 5v4l3 2"/></svg></button>
+              <button class="new-session-button" id="newSessionButton" type="button" aria-label="新会话" title="新会话"><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></button>
+              <button class="new-session-button plan-review-button" id="openPlanButton" type="button" aria-label="查看计划" title="查看计划"><svg class="toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="m9 2 7 7-7 7-7-7z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="conversation" id="conversation" aria-live="polite"></div>
+          <button class="scroll-to-bottom" id="scrollToBottomButton" type="button" hidden aria-label="回到最新消息" title="回到最新消息"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4.5 6.5 9 11l4.5-4.5"/><path d="M4.5 11.5 9 16l4.5-4.5"/></svg><span class="scroll-to-bottom-dot" id="scrollToBottomDot" aria-hidden="true" hidden></span></button>
+
+          <section class="change-review-card" id="changeReviewCard" aria-label="文件改动审核" hidden>
+            <div class="change-review-header">
+              <div class="change-review-heading"><span class="change-review-icon" aria-hidden="true">✦</span><div><strong id="changeReviewTitle">文件改动</strong><div class="change-review-stats" id="changeReviewStats"></div></div></div>
+              <div class="change-review-actions"><button class="change-review-button secondary" id="undoChangesButton" type="button">撤销</button><button class="change-review-button primary" id="reviewChangesButton" type="button">审核</button></div>
+            </div>
+            <div class="change-review-files" id="changeReviewFiles"></div>
+            <button class="change-review-more" id="changeReviewMore" type="button" hidden>再显示更多文件</button>
+          </section>
+
+          <div class="agent-footer">
+            <div class="composer-context" id="composerContext"><svg class="context-icon toolbar-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 2.5 15 9 4 15.5z"/></svg><span>执行模式 · 我会自主阅读、修改并验证代码</span></div>
+            <div class="composer-box">
+              <textarea id="messageInput" rows="2" placeholder="描述你想完成的编程任务…（Enter 发送，Shift + Enter 换行）" aria-label="任务输入"></textarea>
+              <div class="composer-actions">
+                <div class="composer-action-right"><div class="model-picker" id="modelPicker"><svg class="model-picker-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="m9 2 1.6 4.4L15 8l-4.4 1.6L9 14l-1.6-4.4L3 8l4.4-1.6z"/></svg><button id="modelPickerButton" class="model-picker-button" type="button" aria-haspopup="listbox" aria-expanded="false">GPT-5.6 Sol</button><select id="modelSelect" class="model-select" aria-hidden="true" tabindex="-1"><option value="gpt-5.6-sol">GPT-5.6 Sol</option><option value="gpt-5.6-terra">GPT-5.6 Terra</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option><option value="gpt-5.5">GPT-5.5</option><option value="gpt-5.2">GPT-5.2</option></select><div class="model-menu" id="modelMenu" role="listbox" aria-label="选择模型" hidden><button class="model-menu-option" type="button" role="option" data-model="gpt-5.6-sol" aria-selected="true">GPT-5.6 Sol</button><button class="model-menu-option" type="button" role="option" data-model="gpt-5.6-terra" aria-selected="false">GPT-5.6 Terra</button><button class="model-menu-option" type="button" role="option" data-model="gpt-5.6-luna" aria-selected="false">GPT-5.6 Luna</button><button class="model-menu-option" type="button" role="option" data-model="gpt-5.5" aria-selected="false">GPT-5.5</button><button class="model-menu-option" type="button" role="option" data-model="gpt-5.2" aria-selected="false">GPT-5.2</button></div></div><button class="send-button" id="sendButton" type="button"><span id="sendButtonLabel">发送</span></button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="pane-divider" id="paneDivider" role="separator" aria-label="调整代码与对话宽度" aria-orientation="vertical" tabindex="0"></div>
+
+        <aside class="inspector panel-border">
+            <div class="inspector-tabs editor-tab-bar" role="tablist" aria-label="编辑器和运行日志">
+            <button class="inspector-tab active" id="codeTabButton" role="tab" aria-selected="true" type="button">代码预览</button>
+            <button class="inspector-tab" id="activityTabButton" role="tab" aria-selected="false" type="button">终端</button>
+          </div>
+          <div class="code-panel" id="codePanel">
+              <div class="editor-header">
+                  <div class="editor-file"><span id="editorFileIcon" class="file-icon py">PY</span><span id="editorFileName">src/agent.py</span><span class="dirty-badge" id="editorDirtyBadge" hidden>未保存</span></div>
+                  <div class="editor-actions"><button class="small-icon-button" id="copyCodeButton" type="button" title="复制代码" aria-label="复制代码">⧉</button></div>
+            </div>
+            <div class="editor-surface" role="group" aria-label="代码编辑器">
+              <pre class="editor-gutter" id="editorGutter" aria-hidden="true">1</pre>
+              <div class="code-editor-wrap"><pre class="code-highlight" id="codeHighlight" aria-hidden="true"></pre><textarea class="code-editor" id="codeEditor" aria-label="代码编辑器" spellcheck="false" wrap="off"></textarea></div>
+            </div>
+          </div>
+          <div class="terminal-resizer" id="terminalResizer" role="separator" aria-label="调整代码与终端高度" tabindex="0"></div>
+          <div class="activity-panel hidden" id="activityPanel">
+            <div class="activity-heading"><div><div class="eyebrow">TERMINAL</div><h2>本地终端</h2></div><button class="small-icon-button" id="clearActivityButton" type="button" title="清空终端">⌫</button></div>
+            <pre class="terminal-output" id="terminalOutput" aria-live="polite"></pre>
+            <form class="terminal-form" id="terminalForm"><span class="terminal-prompt">$</span><input id="terminalInput" autocomplete="off" spellcheck="false" placeholder="输入命令，例如 pytest -q" aria-label="终端命令" /><button type="submit" class="run-test-button">运行</button></form>
+          </div>
+          <div class="plan-panel" id="planPanel">
+            <div class="plan-panel-heading"><div><div class="eyebrow">WORKFLOW</div><h2>执行计划</h2></div><span class="plan-state draft" id="planState">草稿</span></div>
+            <div class="plan-progress" id="planProgress" hidden>
+              <div class="plan-progress-track" id="planProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></div>
+              <div class="plan-progress-caption" id="planProgressCaption"></div>
+            </div>
+            <div class="plan-list" id="planList"></div>
+            <button class="add-step-button" id="addStepButton" type="button"><span>＋</span> 添加步骤</button>
+            <div class="plan-actions"><button class="outline-button" id="revisePlanButton" type="button">重新规划</button><button class="approve-button" id="approvePlanButton" type="button"><span>✓</span> 确认并执行</button></div>
+            <div class="plan-footnote"><span>↗</span> 确认后会自动切换到执行模式</div>
+          </div>
+        </aside>
+      </section>
+        </main>
+        <div class="session-modal" id="sessionHistoryModal" hidden>
+          <div class="plan-modal-backdrop" data-close-session-modal></div>
+          <section class="plan-modal-card session-modal-card" role="dialog" aria-modal="true" aria-labelledby="sessionHistoryTitle">
+            <div class="plan-modal-header"><div><div class="eyebrow">SESSIONS</div><h2 id="sessionHistoryTitle">历史会话</h2></div><button class="modal-close" id="closeSessionHistory" type="button" aria-label="关闭历史会话">×</button></div>
+            <div class="session-history-toolbar" id="sessionHistoryToolbar" role="toolbar" aria-label="历史会话批量操作">
+              <label class="session-select-all-label"><input id="session-select-all" class="session-select-checkbox" type="checkbox" aria-label="全选历史会话" /> <span>全选</span></label>
+              <span class="session-selection-count" id="sessionSelectionCount" aria-live="polite">已选 0 个</span>
+              <button class="outline-button session-bulk-delete" id="session-bulk-delete" type="button" disabled>删除已选</button>
+            </div>
+            <div class="session-list" id="sessionList"><div class="session-empty">正在加载会话…</div></div>
+          </section>
+        </div>
+        <div class="settings-modal" id="settingsModal" hidden>
+          <div class="plan-modal-backdrop" data-close-settings></div>
+          <section class="plan-modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <div class="plan-modal-header"><div><div class="eyebrow">CONFIGURATION</div><h2 id="settingsTitle">Agent 设置</h2></div><button class="modal-close" id="closeSettings" type="button" aria-label="关闭设置">×</button></div>
+                <div class="settings-form"><div class="settings-section"><div class="settings-section-title">模型连接</div><label>API Base URL<input id="apiBaseInput" type="url" placeholder="https://xcpcai.com/v1" /></label><label>模型<input id="settingsModelInput" type="text" placeholder="gpt-5.6-sol" /></label><label>API 协议<select id="wireApiInput"><option value="auto">自动（推荐）</option><option value="responses">Responses</option><option value="chat">Chat Completions</option></select></label></div><div class="settings-section"><div class="settings-section-title">生成偏好</div><label>推理强度<select id="reasoningEffortInput"><option value="low">低</option><option value="medium" selected>中等（推荐）</option><option value="high">高</option></select></label><label class="api-key-field">API Key<input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-…" /></label></div><div class="settings-actions"><button class="outline-button" id="testConnectionButton" type="button">测试连接</button><button class="approve-button" id="saveSettingsButton" type="button">保存为默认</button></div></div>
+          </section>
+        </div>
+    <div class="settings-modal personal-center-modal" id="personalCenterModal" hidden>
+      <div class="plan-modal-backdrop" data-close-personal-center></div>
+      <section class="plan-modal-card personal-center-modal-card" role="dialog" aria-modal="true" aria-labelledby="personalCenterTitle">
+        <div class="plan-modal-header"><div><div class="eyebrow">ACCOUNT</div><h2 id="personalCenterTitle">个人中心</h2></div><button class="modal-close" id="closePersonalCenter" type="button" aria-label="关闭个人中心">×</button></div>
+        <div class="personal-center-body">
+          <div class="personal-avatar" id="personalAvatar" aria-hidden="true">N</div>
+          <div class="personal-identity">
+            <strong id="personalName">未登录</strong>
+            <span id="personalEmail">未绑定邮箱</span>
+          </div>
+          <div class="personal-stats" id="personalStats" aria-live="polite">
+            <div class="personal-stat"><span class="personal-stat-value" id="statSessions">–</span><span class="personal-stat-label">历史会话</span></div>
+            <div class="personal-stat"><span class="personal-stat-value" id="statWorkspace">–</span><span class="personal-stat-label">当前工作区</span></div>
+            <div class="personal-stat"><span class="personal-stat-value" id="statRegistered">–</span><span class="personal-stat-label">注册时间</span></div>
+          </div>
+          <div class="personal-session-line" id="personalSessionLine"></div>
+          <div class="personal-editor">
+            <div class="personal-editor-section">
+              <div class="personal-editor-heading">修改资料</div>
+              <div class="personal-editor-fields">
+                <label>用户名<input id="profileUsername" class="personal-field-input" type="text" maxlength="64" autocomplete="off"></label>
+                <label>邮箱<input id="profileEmail" class="personal-field-input" type="email" placeholder="可留空" autocomplete="off"></label>
+              </div>
+              <button class="personal-save-button" id="saveProfileButton" type="button">保存资料</button>
+            </div>
+            <div class="personal-editor-section personal-editor-section--password">
+              <div class="personal-editor-heading">修改密码</div>
+              <div class="personal-editor-fields">
+                <label>当前密码<input id="currentPassword" class="personal-field-input" type="password" autocomplete="current-password"></label>
+                <label>新密码<input id="newPassword" class="personal-field-input" type="password" minlength="6" maxlength="256" autocomplete="new-password"></label>
+                <label>确认新密码<input id="confirmPassword" class="personal-field-input" type="password" autocomplete="new-password"></label>
+              </div>
+              <button class="personal-save-button" id="savePasswordButton" type="button">更新密码</button>
+            </div>
+          </div>
+          <div class="personal-actions">
+            <button class="outline-button" id="personalLogoutButton" type="button">退出登录</button>
+            <button class="approve-button" id="personalDoneButton" type="button"><span>✓</span> 知道了</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="change-review-modal" id="changeReviewModal" hidden>
+      <div class="plan-modal-backdrop" data-close-change-modal></div>
+      <section class="change-review-modal-card" role="dialog" aria-modal="true" aria-labelledby="changeDiffTitle">
+        <div class="plan-modal-header"><div><div class="eyebrow">CHANGE REVIEW</div><h2 id="changeDiffTitle">文件改动</h2></div><button class="modal-close" id="closeChangeDiff" type="button" aria-label="关闭改动审核">×</button></div>
+        <pre class="change-diff-content" id="changeDiffContent"></pre>
+      </section>
+    </div>
+    <div class="plan-modal" id="planModal" hidden>
+      <div class="plan-modal-backdrop" data-close-plan-modal></div>
+      <section class="plan-modal-card" role="dialog" aria-modal="true" aria-labelledby="planModalTitle" aria-describedby="planModalCopy" aria-busy="false">
+        <div class="plan-modal-header"><div><div class="eyebrow" id="planModalEyebrow">PLAN WORKFLOW</div><h2 id="planModalTitle">完善执行计划</h2></div><button class="modal-close" id="closePlanModal" type="button" aria-label="关闭计划窗口">×</button></div>
+        <p class="plan-modal-copy" id="planModalCopy">我会先确认需求，再生成可编辑的执行步骤。</p>
+        <div class="plan-workflow-status" id="planWorkflowStatus" role="status" aria-live="polite"></div>
+        <div class="plan-view-tabs" id="planViewTabs" role="tablist" aria-label="在问答与计划之间切换">
+          <button class="plan-view-tab" id="clarificationTabButton" type="button" role="tab" aria-selected="true">需求问答</button>
+          <button class="plan-view-tab" id="planReviewTabButton" type="button" role="tab" aria-selected="false">执行计划</button>
+        </div>
+        <div class="plan-clarification-view" id="planClarificationView" hidden>
+          <div class="plan-section-label">需要你确认</div>
+          <div class="clarification-questions" id="clarificationQuestions" aria-live="polite"></div>
+          <label class="clarification-answer-label" for="clarificationAnswerInput">补充说明 <span>可一次回答多个问题</span></label>
+          <textarea id="clarificationAnswerInput" class="clarification-answer" rows="4" placeholder="例如：目标文件是 src/auth.py；使用邮箱登录，失败显示提示即可。" aria-label="需求明确问题回答"></textarea>
+          <div class="plan-modal-actions clarification-actions"><button class="outline-button" id="cancelPlanButton" type="button">取消任务</button><button class="approve-button" id="submitClarificationButton" type="button">继续完善</button></div>
+        </div>
+        <div class="plan-review-view" id="planReviewView" hidden>
+          <div class="plan-back-row"><button class="plan-back-button" id="backToClarificationButton" type="button" aria-label="返回问答修改答案">← 返回问答修改答案</button></div>
+          <div class="replan-box">
+            <label for="replanFeedbackInput">需要调整吗？ <span>说明要保留、删除或新增的范围</span></label>
+            <textarea id="replanFeedbackInput" rows="2" placeholder="例如：保留现有 API，不改数据库；把测试放到最后。" aria-label="重新规划意见"></textarea>
+          </div>
+          <div class="replan-actions">
+            <button class="outline-button" id="submitReplanButton" type="button">重新生成计划</button>
+            <span class="replan-hint">Ctrl/Cmd + Enter 提交</span>
+          </div>
+          <div id="planModalSlot"></div>
+        </div>
+      </section>
+    </div>
+    <div class="plan-modal compaction-modal" id="compactionModal" hidden>
+      <div class="plan-modal-backdrop" data-close-compaction></div>
+      <section class="plan-modal-card compaction-modal-card" role="dialog" aria-modal="true" aria-labelledby="compactionModalTitle" aria-describedby="compactionModalCopy">
+        <div class="plan-modal-header"><div><div class="eyebrow" id="compactionModalEyebrow">CONTEXT COMPACTION</div><h2 id="compactionModalTitle">上下文压缩</h2></div><button class="modal-close" id="closeCompactionModal" type="button" aria-label="关闭上下文压缩">×</button></div>
+        <p class="plan-modal-copy" id="compactionModalCopy">确认计划后，前面的问答与计划内容已压缩为一份执行交接摘要。</p>
+        <div class="compaction-digest" id="compactionDigest" aria-live="polite"></div>
+        <div class="compaction-body" id="compactionBody"></div>
+      </section>
+    </div>
+    <div class="tree-context-menu" id="treeContextMenu" role="menu" hidden>
+      <div class="context-menu-path" id="contextMenuPath"></div>
+      <button type="button" role="menuitem" data-context-action="open">在编辑器中打开</button>
+      <button type="button" role="menuitem" data-context-action="mention">添加到对话</button>
+      <button type="button" role="menuitem" data-context-action="copy-file">复制</button>
+      <button type="button" role="menuitem" data-context-action="paste">粘贴</button>
+      <button type="button" role="menuitem" data-context-action="delete">删除</button>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
